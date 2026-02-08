@@ -26,15 +26,16 @@ class SimulationResult:
     """Results from a single parking simulation."""
     parked_position: float      # Position where you parked
     destination_position: float # Original destination position
-    distance_to_destination: float  # Distance to destination (always negative = how far to walk)
-    walking_distance: float     # Absolute walking distance (always positive)
+    distance_past_destination: float  # How far past destination you parked (negative if before)
+    walking_distance_forward: float   # Distance walked forward from car to destination
+    walking_distance_total: float     # Total walking distance
     found_before_destination: bool    # Did you find parking before destination?
     
     def __repr__(self) -> str:
         status = "BEFORE" if self.found_before_destination else "AFTER"
         return (f"Position: {self.parked_position:.2f}, "
                 f"Status: {status}, "
-                f"Walk: {self.walking_distance:.2f}")
+                f"Walk: {self.walking_distance_total:.2f}")
 
 
 class EndlessRoadParkingSimulator:
@@ -70,7 +71,7 @@ class EndlessRoadParkingSimulator:
             SimulationResult with parking position and walking distance
         """
         current_position = 0.0
-        destination = self.params.destination_distance
+        destination = self.params.destination_position
         max_search = self.params.max_search_distance
         
         # Keep driving until you find an empty space
@@ -90,18 +91,20 @@ class EndlessRoadParkingSimulator:
                 break
         
         # Calculate results
-        # distance_to_destination = parked_position - destination (negative if before, positive if after)
-        distance_to_destination = parked_position - destination
-        found_before_destination = distance_to_destination < 0
+        distance_past_destination = parked_position - destination
+        found_before_destination = distance_past_destination < 0
         
-        # Walking distance is the absolute value (how far you need to walk)
-        walking_distance = abs(distance_to_destination)
+        # Walking distance calculation:
+        # If parked before destination: walk forward to destination
+        # If parked after destination: walk backward to destination
+        walking_distance_total = abs(distance_past_destination)
         
         return SimulationResult(
             parked_position=parked_position,
             destination_position=destination,
-            distance_to_destination=distance_to_destination,
-            walking_distance=walking_distance,
+            distance_past_destination=distance_past_destination,
+            walking_distance_forward=walking_distance_total,
+            walking_distance_total=walking_distance_total,
             found_before_destination=found_before_destination
         )
     
@@ -129,8 +132,8 @@ class EndlessRoadParkingSimulator:
             raise ValueError("No simulation results. Run simulations first.")
         
         positions = [r.parked_position for r in self.results]
-        walking_distances = [r.walking_distance for r in self.results]
-        distances_to_dest = [r.distance_to_destination for r in self.results]
+        walking_distances = [r.walking_distance_total for r in self.results]
+        distances_past = [r.distance_past_destination for r in self.results]
         before_dest = sum(1 for r in self.results if r.found_before_destination)
         
         return {
@@ -142,7 +145,7 @@ class EndlessRoadParkingSimulator:
             'median_walking_distance': np.median(walking_distances),
             'min_walking_distance': np.min(walking_distances),
             'max_walking_distance': np.max(walking_distances),
-            'mean_distance_to_destination': np.mean(distances_to_dest),
+            'mean_distance_past_destination': np.mean(distances_past),
             'fraction_before_destination': before_dest / len(self.results),
             'fraction_after_destination': (len(self.results) - before_dest) / len(self.results),
         }
@@ -174,9 +177,9 @@ class EndlessRoadParkingSimulator:
         print(f"  Mean position: {stats['mean_parking_position']:.4f} units")
         print(f"  Median position: {stats['median_parking_position']:.4f} units")
         print(f"  Std deviation: {stats['std_parking_position']:.4f}")
-        print(f"  Mean distance to destination: {stats['mean_distance_to_destination']:.4f} units")
+        print(f"  Mean distance past destination: {stats['mean_distance_past_destination']:.4f} units")
         
-        print(f"\nWalking Distance Statistics (Absolute Values):")
+        print(f"\nWalking Distance Statistics:")
         print(f"  Mean walking distance: {stats['mean_walking_distance']:.4f} units")
         print(f"  Median walking distance: {stats['median_walking_distance']:.4f} units")
         print(f"  Std deviation: {stats['std_walking_distance']:.4f}")
